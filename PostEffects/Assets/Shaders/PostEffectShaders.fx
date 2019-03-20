@@ -56,5 +56,32 @@ float4 PS_PostEffect_None(VertexOutput input) : SV_TARGET
  	return gColourSurface.Sample(linearMipSampler, input.uv);
 }
 
+float4 PS_PostEffect_CrossStitch(VertexOutput input) : SV_TARGET
+{
+	float4 c = float4(0, 0, 0, 0);
+	float size = 6.0f;
+	float2 cPos = input.uv * float2(1024, 768);
+	float2 tlPos = floor(cPos / float2(size, size));
+	tlPos *= size;
+	int remX = int(cPos.x % size);
+	int remY = int(cPos.y % size);
 
+	if (remX == 0 && remY == 0)
+	{
+		tlPos = cPos;
+	}
+
+	float2 blPos = tlPos;
+	blPos.y += (size - 1.0);
+	if (remX == remY || (((int(cPos.x) - int(blPos.x) == (int(blPos.y) - int(cPos.y))))))
+	{
+		c = gColourSurface.Sample(linearMipSampler, tlPos * float2(1.0 / 1024, 1.0 / 768)) * 1.4;
+	}
+	else
+	{
+		c = float4(0, 0, 0, 1);
+	}
+
+	return c;
+}
 ///////////////////////////////////////////////////////////////////////////////
