@@ -56,10 +56,19 @@ float4 PS_PostEffect_None(VertexOutput input) : SV_TARGET
  	return gColourSurface.Sample(linearMipSampler, input.uv);
 }
 
+// Pixelate Effect
+float4 PS_PostEffect_Pixelate(VertexOutput input) : SV_TARGET
+{
+	float scale = 150.0;
+	float2 UV = floor(input.uv * scale) / scale;
+	return gColourSurface.Sample(linearMipSampler, UV);
+}
+
+// Cross Stitch Effect. Gathered from: https://www.geeks3d.com/20110408/cross-stitching-post-processing-shader-glsl-filter-geexlab-pixel-bender/
 float4 PS_PostEffect_CrossStitch(VertexOutput input) : SV_TARGET
 {
 	float4 c = float4(0, 0, 0, 0);
-	float size = 6.0f;
+	float size = 4.0f;
 	float2 cPos = input.uv * float2(1024, 768);
 	float2 tlPos = floor(cPos / float2(size, size));
 	tlPos *= size;
