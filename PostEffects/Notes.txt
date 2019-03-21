@@ -1,0 +1,3 @@
+The effect the look at is called Dithering. There is a good article on it here: https://www.alanzucconi.com/2018/10/24/shader-showcase-saturday-11/
+
+This is a good article discussing one of the implementations of Ordered Dithering: https://bisqwit.iki.fi/story/howto/dither/jy/#Appendix%201GammaCorrection

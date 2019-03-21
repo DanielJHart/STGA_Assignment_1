@@ -38,6 +38,8 @@ struct VertexOutput
 Texture2D gColourSurface : register(t0);
 Texture2D gDepthSurface : register(t1);
 
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // Passthrough quad info in the vertex shader.
 VertexOutput VS_PostEffect(VertexInput input)
@@ -54,6 +56,36 @@ VertexOutput VS_PostEffect(VertexInput input)
 float4 PS_PostEffect_None(VertexOutput input) : SV_TARGET
 {
  	return gColourSurface.Sample(linearMipSampler, input.uv);
+}
+
+float4 GetClosestColourInPalette(float4 col)
+{	
+	float4 Palette[2] = { float4(0, 0, 0, 1), float4(1, 1, 1, 1) };
+
+	float dist1 = ((Palette[0].x * Palette[0].x) - (col.x * col.x) +
+					(Palette[0].y * Palette[0].y) -(col.y * col.y) +
+					(Palette[0].z * Palette[0].z) -(col.z * col.z));
+
+	float dist2 = ((Palette[1].x * Palette[1].x) - (col.x * col.x) +
+					(Palette[1].y * Palette[1].y) - (col.y * col.y) +
+					(Palette[1].z * Palette[1].z) - (col.z * col.z));
+
+	return float4(dist1, dist1, dist1, 1);
+
+	if (dist1 >= dist2)
+	{
+		return Palette[0];
+	}
+	else
+	{
+		return Palette[1];
+	}
+}															  
+
+float4 PS_PostEffect_Dither(VertexOutput input) : SV_TARGET
+{
+	float4 c = gColourSurface.Sample(linearMipSampler, input.uv);
+	return GetClosestColourInPalette(c);
 }
 
 // Pixelate Effect
