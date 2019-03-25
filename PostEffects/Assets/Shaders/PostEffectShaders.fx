@@ -58,35 +58,51 @@ float4 PS_PostEffect_None(VertexOutput input) : SV_TARGET
  	return gColourSurface.Sample(linearMipSampler, input.uv);
 }
 
-float4 GetClosestColourInPalette(float4 col)
+///////////////////////////////////////////////////////////////////////////////
+// FLOYD-STEINBERG DITHERING
+///////////////////////////////////////////////////////////////////////////////
+
+float4 Grayscale(float4 col)
+{
+	float c = col.x * 0.299 + col.y * 0.587 + col.z * 0.114;
+	c += 0.15f;
+	return float4(c, c, c, 1);
+}
+
+float4 FindClosestPaletteColour(float4 col)
 {	
-	float4 Palette[2] = { float4(0, 0, 0, 1), float4(1, 1, 1, 1) };
+	int r = round(col.x);
+	int g = round(col.y);
+	int b = round(col.z);
 
-	float dist1 = ((Palette[0].x * Palette[0].x) - (col.x * col.x) +
-					(Palette[0].y * Palette[0].y) -(col.y * col.y) +
-					(Palette[0].z * Palette[0].z) -(col.z * col.z));
+	return float4(r, g, b, 1);
 
-	float dist2 = ((Palette[1].x * Palette[1].x) - (col.x * col.x) +
-					(Palette[1].y * Palette[1].y) - (col.y * col.y) +
-					(Palette[1].z * Palette[1].z) - (col.z * col.z));
-
-	return float4(dist1, dist1, dist1, 1);
-
-	if (dist1 >= dist2)
-	{
-		return Palette[0];
-	}
-	else
-	{
-		return Palette[1];
-	}
 }															  
+float4 GetError(int diffX, int diffY, float2 uv)
+{
+	float u = uv.x + (diffX * (1 / 1024));
+	float v = uv.y + (diffY * (1 / 768));
+	float4 c = gColourSurface.Sample(linearMipSampler, float2(u, v));
+	c = Grayscale(c);
+	float4 p = FindClosestPaletteColour(c);
+	return float4((p - c).xyz, 1);
+}
 
-float4 PS_PostEffect_Dither(VertexOutput input) : SV_TARGET
+float4 PS_PostEffect_Floyd_Steinberg_Dither(VertexOutput input) : SV_TARGET
 {
 	float4 c = gColourSurface.Sample(linearMipSampler, input.uv);
-	return GetClosestColourInPalette(c);
+	c = Grayscale(c);
+	float4 palette = FindClosestPaletteColour(c);
+
+	palette += GetError(1, 0, input.uv) * (7.0 / 16.0);
+	palette += GetError(-1, 1, input.uv) * (3.0 / 16.0);
+	palette += GetError(0, 1, input.uv) * (5.0 / 16.0);
+	palette += GetError(1, 1, input.uv) * (1.0 / 16.0);
+
+	return palette;
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 // Pixelate Effect
 float4 PS_PostEffect_Pixelate(VertexOutput input) : SV_TARGET
