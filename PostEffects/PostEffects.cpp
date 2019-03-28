@@ -36,8 +36,9 @@ public:
 		// Setup the camera.
 		m_position = v3(0.5f, 0.5f, 0.5f);
 		m_size = 1.0f;
-		systems.pCamera->eye = v3(10.f, 5.f, 7.f);
-		systems.pCamera->look_at(v3(3.f, 0.5f, 0.f));
+		systems.pCamera->eye = v3(0.f, 0.f, -1.f);
+		systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
+		systems.pCamera->up = (v3(0.f, 1.f, 0.f));
 
 		// Compile a set of shaders for mesh rendering in main pass.
 		m_meshShader.init(systems.pD3DDevice
@@ -47,7 +48,7 @@ public:
 
 		// Compile a set of shaders for our post effect
 		m_postEffectShader.init(systems.pD3DDevice
-			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", "PS_PostEffect_Dither")
+			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", "PS_PostEffect_None")
 			, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 		);
 
@@ -57,14 +58,17 @@ public:
 		// Create Per Frame Constant Buffer.
 		m_pPerDrawCB = create_constant_buffer<PerDrawCBData>(systems.pD3DDevice);
 
+		create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[0], systems.height / 2);
+
 		// Initialize a mesh directly.
-		create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
+		////create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
 
 		// Initialize a mesh from an .OBJ file
 		create_mesh_from_obj(systems.pD3DDevice, m_meshArray[1], "Assets/Models/apple.obj", 0.01f);
 
 		// Initialise some textures;
-		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
+		//m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
+		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/lenna.dds");
 		m_textures[1].init_from_dds(systems.pD3DDevice, "Assets/Textures/apple_diffuse.dds");
 
 		// We need a sampler state to define wrapping and mipmap parameters.
@@ -151,6 +155,13 @@ public:
 			m_meshArray[t].bind(systems.pD3DContext);
 			m_textures[t].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
 
+			m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
+			m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
+			m_perDrawCBData.m_matMVP = matMVP.Transpose();
+			push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
+			m_meshArray[0].draw(systems.pD3DContext);
+
+		/*
 			// Draw several instances
 			for (u32 i = 0; i < kNumInstances; ++i)
 			{
@@ -170,8 +181,8 @@ public:
 					m_meshArray[t].draw(systems.pD3DContext);
 				}
 			}
+		*/
 		}
-
 		//=======================================================================================
 		// The Post FX pass
 		// Draw our scene into the off-screen render surface

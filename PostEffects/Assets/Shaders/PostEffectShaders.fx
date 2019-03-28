@@ -126,7 +126,7 @@ float indexValue(int x, int y)
 
 float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 {
-	float c = PS_PostEffect_CrossStitch(input); //gColourSurface.Sample(linearMipSampler, input.uv); //= Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
+	float c = PS_PostEffect_Pixelate(input); //gColourSurface.Sample(linearMipSampler, input.uv); //= Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
 	float closestColour = (c.x < 0.5f) ? 0 : 1;
 	float secondClosestColour = 1 - closestColour;
 	float d = indexValue(input.uv.x * 1024, input.uv.y * 768);
