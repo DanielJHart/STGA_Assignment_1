@@ -1439,7 +1439,11 @@ void Camera::checkMouseRotation()
 void Camera::resizeViewport(u32 width, u32 height)
 {
 	aspect = static_cast<float>(width) / static_cast<float>(height);
+#ifdef PERSPECTIVE
 	projMatrix = m4x4::CreatePerspectiveFieldOfView(fovY, aspect, nearClip, farClip);
+#else
+	projMatrix = m4x4::CreateOrthographic(width, height, 0, 100);
+#endif
 	updateMatrices();
 }
 

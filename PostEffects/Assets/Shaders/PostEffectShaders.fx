@@ -110,29 +110,90 @@ float4 Grayscale(float4 col)
 // BAYER DITHERING
 ///////////////////////////////////////////////////////////////////////////////
 
-int MatSize = 4;
+int MatSize = 8;
+float matSizeSq = 64.f;
 int indexMatrix4x4[16] = {  0,		8,		2,		10,
 							12,		4,		14,		6,
 							3,		11,		1,		9,
 							15,		7,		13,		5 };
 
+int indexMatrix8x8[64] = { 0, 32, 8, 40, 2, 34, 10, 42,
+	48, 16, 56, 24, 50, 18, 58, 26,
+	12, 44, 4, 36, 14, 46, 6, 38,
+	60, 28, 52, 20, 62, 30, 54, 22,
+	3, 35, 11, 43, 1, 33, 9, 41,
+	51, 19, 59, 27, 49, 17, 57, 25,
+	15, 47, 7, 39, 13, 45, 5, 37,
+	63, 31, 55, 23, 61, 29, 53, 21 };
+
 float indexValue(int x, int y)
 {
 	int indX = x % MatSize;
 	int indY = y % MatSize;
-	return indexMatrix4x4[(indX + indY * MatSize)] / 16.0f;
+	return indexMatrix8x8[((indX + indY) * MatSize)] / matSizeSq;
 }
 
+float Dither(float color, int x , int y) 
+{
+	float closestColor = (color < 0.5) ? 0 : 1;
+	float secondClosestColor = 1 - closestColor;
+	float d = indexValue(x, y);
+	float distance = abs(closestColor - color);
+	return (distance < d) ? secondClosestColor : closestColor;
+}
+
+float find_closest(int x, int y, float c0)
+{
+	int dither[8][8] = {
+{ 0, 32, 8, 40, 2, 34, 10, 42}, /* 8x8 Bayer ordered dithering */
+{48, 16, 56, 24, 50, 18, 58, 26}, /* pattern. Each input pixel */
+{12, 44, 4, 36, 14, 46, 6, 38}, /* is scaled to the 0..63 range */
+{60, 28, 52, 20, 62, 30, 54, 22}, /* before looking in this table */
+{ 3, 35, 11, 43, 1, 33, 9, 41}, /* to determine the action. */
+{51, 19, 59, 27, 49, 17, 57, 25},
+{15, 47, 7, 39, 13, 45, 5, 37},
+{63, 31, 55, 23, 61, 29, 53, 21} };
+
+	float limit = 0.0f;
+	if (x < 8)
+	{
+		limit = (dither[x][y] + 1) / 64.0;
+	}
+
+	if (c0 < limit)
+	{
+		return 0.0;
+	}
+
+	return 1.0;
+}
+
+//#define VERSION_1
 
 float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 {
-	float c = PS_PostEffect_Pixelate(input); //gColourSurface.Sample(linearMipSampler, input.uv); //= Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
-	float closestColour = (c.x < 0.5f) ? 0 : 1;
-	float secondClosestColour = 1 - closestColour;
-	float d = indexValue(input.uv.x * 1024, input.uv.y * 768);
-	float distance = abs(closestColour - c.x);
-	float retc = (distance < 0) ? closestColour : secondClosestColour;
+#ifdef VERSION_1
+	float c = gColourSurface.Sample(linearMipSampler, input.uv); //= Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
+	float retc = Dither(c.x, input.vpos.x, input.vpos.y);
 	return float4(retc, retc, retc, 1);
+#else
+	// Courtesy of: http://devlog-martinsh.blogspot.com/2011/03/glsl-8x8-bayer-matrix-dithering.html
+	float4 grayscale = Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
+	float4 rgb = gColourSurface.Sample(linearMipSampler, input.uv);
+	float2 xy = input.vpos.xy;
+	int x = (int)(xy.x % 8);
+	int y = (int)(xy.y % 8);
+
+	float3 finalRGB;
+
+	finalRGB.x = find_closest(x, y, grayscale.x);
+	finalRGB.y = find_closest(x, y, grayscale.y);
+	finalRGB.z = find_closest(x, y, grayscale.z);
+
+	float final = find_closest(x, y, grayscale);
+	return float4(finalRGB, 1.0);
+
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -48,7 +48,7 @@ public:
 
 		// Compile a set of shaders for our post effect
 		m_postEffectShader.init(systems.pD3DDevice
-			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", "PS_PostEffect_None")
+			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", "PS_PostEffect_Bayer_Dither")
 			, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 		);
 
