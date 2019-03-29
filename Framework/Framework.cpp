@@ -1435,6 +1435,7 @@ void Camera::checkMouseRotation()
 	//debugF("amt=  %d, %d\n", mouse.deltaX, mouse.deltaY);
 }
 
+#define PERSPECTIVE
 
 void Camera::resizeViewport(u32 width, u32 height)
 {

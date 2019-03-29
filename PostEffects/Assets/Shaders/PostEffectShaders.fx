@@ -57,8 +57,8 @@ VertexOutput VS_PostEffect(VertexInput input)
 float4 PS_PostEffect_Pixelate(VertexOutput input) : SV_TARGET
 {
 	float scale = 150.0;
-float2 UV = floor(input.uv * scale) / scale;
-return gColourSurface.Sample(linearMipSampler, UV);
+	float2 UV = floor(input.uv * scale) / scale;
+	return gColourSurface.Sample(linearMipSampler, UV);
 }
 
 // Cross Stitch Effect. Gathered from: https://www.geeks3d.com/20110408/cross-stitching-post-processing-shader-glsl-filter-geexlab-pixel-bender/
@@ -112,39 +112,38 @@ float4 Grayscale(float4 col)
 
 int MatSize = 8;
 float matSizeSq = 64.f;
-int indexMatrix4x4[16] = {  0,		8,		2,		10,
-							12,		4,		14,		6,
-							3,		11,		1,		9,
-							15,		7,		13,		5 };
 
-int indexMatrix8x8[64] = { 0, 32, 8, 40, 2, 34, 10, 42,
-	48, 16, 56, 24, 50, 18, 58, 26,
-	12, 44, 4, 36, 14, 46, 6, 38,
-	60, 28, 52, 20, 62, 30, 54, 22,
-	3, 35, 11, 43, 1, 33, 9, 41,
-	51, 19, 59, 27, 49, 17, 57, 25,
-	15, 47, 7, 39, 13, 45, 5, 37,
-	63, 31, 55, 23, 61, 29, 53, 21 };
 
-float indexValue(int x, int y)
-{
-	int indX = x % MatSize;
-	int indY = y % MatSize;
-	return indexMatrix8x8[((indX + indY) * MatSize)] / matSizeSq;
-}
+int indexMatrix8x8[8][8] = {{ 0, 32, 8, 40, 2, 34, 10, 42 },
+							{48, 16, 56, 24, 50, 18, 58, 26},
+							{12, 44, 4, 36, 14, 46, 6, 38},
+							{60, 28, 52, 20, 62, 30, 54, 22},
+							{3, 35, 11, 43, 1, 33, 9, 41},
+							{51, 19, 59, 27, 49, 17, 57, 25},
+							{15, 47, 7, 39, 13, 45, 5, 37},
+							{63, 31, 55, 23, 61, 29, 53, 21 }};
 
-float Dither(float color, int x , int y) 
-{
-	float closestColor = (color < 0.5) ? 0 : 1;
-	float secondClosestColor = 1 - closestColor;
-	float d = indexValue(x, y);
-	float distance = abs(closestColor - color);
-	return (distance < d) ? secondClosestColor : closestColor;
-}
+////float indexValue(int x, int y)
+////{
+////	int indX = x % MatSize;
+////	int indY = y % MatSize;
+////	return indexMatrix8x8[((indX + indY) * MatSize)] / matSizeSq;
+////}
 
-float find_closest(int x, int y, float c0)
-{
-	int dither[8][8] = {
+////float Dither(float color, int x , int y) 
+////{
+////	float closestColor = (color < 0.5) ? 0 : 1;
+////	float secondClosestColor = 1 - closestColor;
+////	float d = indexValue(x, y);
+////	float distance = abs(closestColor - color);
+////	return (distance < d) ? secondClosestColor : closestColor;
+////}
+static int indexMatrix4x4[4][4] = { { 0,		8,		2,		10 },
+							{ 12,		4,		14,		6 },
+							{ 3,		11,		1,		9 },
+							{15,		7,		13,		5 } };
+
+static int dither[8][8] = {
 { 0, 32, 8, 40, 2, 34, 10, 42}, /* 8x8 Bayer ordered dithering */
 {48, 16, 56, 24, 50, 18, 58, 26}, /* pattern. Each input pixel */
 {12, 44, 4, 36, 14, 46, 6, 38}, /* is scaled to the 0..63 range */
@@ -154,21 +153,18 @@ float find_closest(int x, int y, float c0)
 {15, 47, 7, 39, 13, 45, 5, 37},
 {63, 31, 55, 23, 61, 29, 53, 21} };
 
-	float limit = 0.0f;
-	if (x < 8)
-	{
-		limit = (dither[x][y] + 1) / 64.0;
-	}
+//#define VERSION_1
+float4 color1 = float4(0.f, 0.f, 0.f, 1.f);
+float4 color2 = float4(1.f, 1.f, 1.f, 1.f);
 
-	if (c0 < limit)
-	{
-		return 0.0;
-	}
+float find_closest(int x, int y, float c0)
+{
+	float limit = (x < 8) ? (dither[x][y] + 1) / 64.0f : 0.0f;
 
-	return 1.0;
+	return(c0 < limit) ? 0.0 : 1.0;
 }
 
-//#define VERSION_1
+
 
 float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 {
@@ -178,8 +174,9 @@ float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 	return float4(retc, retc, retc, 1);
 #else
 	// Courtesy of: http://devlog-martinsh.blogspot.com/2011/03/glsl-8x8-bayer-matrix-dithering.html
-	float4 grayscale = Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
-	float4 rgb = gColourSurface.Sample(linearMipSampler, input.uv);
+	//float4 pixellatedCol = PS_PostEffect_Pixelate(input);
+	float4 col = gColourSurface.Sample(linearMipSampler, input.uv);
+	float4 grayscale = Grayscale(col);
 	float2 xy = input.vpos.xy;
 	int x = (int)(xy.x % 8);
 	int y = (int)(xy.y % 8);
@@ -190,8 +187,9 @@ float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 	finalRGB.y = find_closest(x, y, grayscale.y);
 	finalRGB.z = find_closest(x, y, grayscale.z);
 
-	float final = find_closest(x, y, grayscale);
-	return float4(finalRGB, 1.0);
+	float finalC = (finalRGB.x > 0.5) ? color1 : color2;
+
+	return float4(finalRGB.xyz, 1.0);
 
 #endif
 }

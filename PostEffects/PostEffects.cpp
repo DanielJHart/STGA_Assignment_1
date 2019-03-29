@@ -58,17 +58,17 @@ public:
 		// Create Per Frame Constant Buffer.
 		m_pPerDrawCB = create_constant_buffer<PerDrawCBData>(systems.pD3DDevice);
 
-		create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[0], systems.height / 2);
 
 		// Initialize a mesh directly.
-		////create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
+		create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
+		//create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[0], systems.height / 2);
 
 		// Initialize a mesh from an .OBJ file
 		create_mesh_from_obj(systems.pD3DDevice, m_meshArray[1], "Assets/Models/apple.obj", 0.01f);
 
 		// Initialise some textures;
-		//m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
-		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/lenna.dds");
+		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
+		//m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/lenna.dds");
 		m_textures[1].init_from_dds(systems.pD3DDevice, "Assets/Textures/apple_diffuse.dds");
 
 		// We need a sampler state to define wrapping and mipmap parameters.
@@ -155,13 +155,13 @@ public:
 			m_meshArray[t].bind(systems.pD3DContext);
 			m_textures[t].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
 
-			m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
-			m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
-			m_perDrawCBData.m_matMVP = matMVP.Transpose();
-			push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
-			m_meshArray[0].draw(systems.pD3DContext);
+			////m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
+			////m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
+			////m_perDrawCBData.m_matMVP = matMVP.Transpose();
+			////push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
+			////m_meshArray[0].draw(systems.pD3DContext);
 
-		/*
+		
 			// Draw several instances
 			for (u32 i = 0; i < kNumInstances; ++i)
 			{
@@ -181,7 +181,7 @@ public:
 					m_meshArray[t].draw(systems.pD3DContext);
 				}
 			}
-		*/
+		
 		}
 		//=======================================================================================
 		// The Post FX pass
