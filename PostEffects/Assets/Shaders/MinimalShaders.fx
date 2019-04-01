@@ -8,7 +8,9 @@ cbuffer PerFrameCB : register(b0)
 	matrix matProjection;
 	matrix matView;
 	float  time;
-	float  padding[3];
+	float3  colour1;
+	float3  colour2;
+	float padding;
 };
 
 cbuffer PerDrawCB : register(b1)

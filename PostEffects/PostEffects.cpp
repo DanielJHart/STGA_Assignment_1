@@ -4,6 +4,8 @@
 #include "Mesh.h"
 #include "Texture.h"
 
+#define MAX_PALETTES 4
+
 //================================================================================
 // Minimal Application
 // An example of how to use selected parts of this framework.
@@ -16,14 +18,67 @@ public:
 	{
 		m4x4 m_matProjection;
 		m4x4 m_matView;
-		f32		m_time;
-		f32     m_padding[3];
+		f32	m_time;
+		f32 colour1[3];
+		f32	colour2[3];
+		f32 padding;
 	};
 
 	struct PerDrawCBData
 	{
 		m4x4 m_matMVP;
 	};
+
+	struct ColourPreset
+	{
+		ColourPreset() {};
+		ColourPreset(f32 r1, f32 g1, f32 b1, f32 r2, f32 g2, f32 b2, std::string name)
+		{
+
+			Colour1[0] = r1;
+			Colour1[1] = g1;
+			Colour1[2] = b1;
+
+			Colour2[0] = r2;
+			Colour2[1] = g2;
+			Colour2[2] = b2;
+		}
+
+		f32 Colour1[3];
+		f32 Colour2[3];
+		std::string name;
+	};
+
+	void SetupModelsAndTextures(SystemsInterface& systems)
+	{
+		// Initialize a mesh directly.
+		create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
+
+		// Initialize a mesh from an .OBJ file
+		create_mesh_from_obj(systems.pD3DDevice, m_meshArray[1], "Assets/Models/apple.obj", 0.01f);
+		create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[2], systems.height / 2);
+		create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[3], systems.height / 2);
+
+		// Initialise some textures;
+		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
+		m_textures[1].init_from_dds(systems.pD3DDevice, "Assets/Textures/apple_diffuse.dds");
+		m_textures[2].init_from_dds(systems.pD3DDevice, "Assets/Textures/lenna.dds");
+		m_textures[3].init_from_dds(systems.pD3DDevice, "Assets/Textures/gradient.dds");
+	}
+
+	void SetupPalettes()
+	{
+		palettes[0] = ColourPreset( 0.f, 0.f, 0.f, 1.f, 1.f, 1.f, "Black And White" );
+		palettes[1] = ColourPreset(0.203, 0.203, 0.105, 0.898, 1, 0.992, "Obra Dinn 1"); // #33321A, #CCFFFF
+		palettes[2] = ColourPreset(0.239, 0.152, 0.109, 0.984, 0.776, 0.360, "Obra Dinn 2"); // #3B251A, #FBC757
+		palettes[3] = ColourPreset(0.f, 0.f, 0.f, 0.470, 0.780, 0.188, "Classic Computer Graphics"); // #3B251A, #FBC757
+
+		for (int i = 0; i < 3; ++i)
+		{
+			m_perFrameCBData.colour1[i] = palettes[0].Colour1[i];
+			m_perFrameCBData.colour2[i] = palettes[0].Colour2[i];
+		}
+	}
 
 	void on_init(SystemsInterface& systems) override
 	{
@@ -34,7 +89,7 @@ public:
 		create_mesh_quad_xy(systems.pD3DDevice, m_fullScreenQuad, 1.0f);
 
 		// Setup the camera.
-		m_position = v3(0.5f, 0.5f, 0.5f);
+		m_position = v3(0.0f, 0.0f, -1.0f);
 		m_size = 1.0f;
 		systems.pCamera->eye = v3(0.f, 0.f, -1.f);
 		systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
@@ -52,24 +107,17 @@ public:
 			, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 		);
 
+		constexpr int size = sizeof(PerFrameCBData);
+
 		// Create Per Frame Constant Buffer.
 		m_pPerFrameCB = create_constant_buffer<PerFrameCBData>(systems.pD3DDevice);
 
 		// Create Per Frame Constant Buffer.
 		m_pPerDrawCB = create_constant_buffer<PerDrawCBData>(systems.pD3DDevice);
 
+		SetupModelsAndTextures(systems);
 
-		// Initialize a mesh directly.
-		create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
-		//create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[0], systems.height / 2);
-
-		// Initialize a mesh from an .OBJ file
-		create_mesh_from_obj(systems.pD3DDevice, m_meshArray[1], "Assets/Models/apple.obj", 0.01f);
-
-		// Initialise some textures;
-		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
-		//m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/lenna.dds");
-		m_textures[1].init_from_dds(systems.pD3DDevice, "Assets/Textures/apple_diffuse.dds");
+		SetupPalettes();
 
 		// We need a sampler state to define wrapping and mipmap parameters.
 		m_pLinearMipSamplerState = create_basic_sampler(systems.pD3DDevice, D3D11_TEXTURE_ADDRESS_WRAP);
@@ -89,9 +137,6 @@ public:
 		// This function displays some useful debugging values, camera positions etc.
 		DemoFeatures::editorHud(systems.pDebugDrawContext);
 
-		ImGui::SliderFloat3("Position", (float*)&m_position, -1.f, 1.f);
-		ImGui::SliderFloat("Size", &m_size, 0.1f, 10.f);
-
 		// Update Per Frame Data.
 		m_perFrameCBData.m_matProjection = systems.pCamera->projMatrix.Transpose();
 		m_perFrameCBData.m_matView = systems.pCamera->viewMatrix.Transpose();
@@ -101,14 +146,46 @@ public:
 	void on_render(SystemsInterface& systems) override
 	{
 		// Grid from -50 to +50 in both X & Z
-		static bool s_bGrid = false;
-		ImGui::Checkbox("Display Grids", &s_bGrid);
+		static bool s_bOrtho = true;
+		static int currentColourPreset = 0;
+		ImGui::Checkbox("Orthographic", &s_bOrtho);
+		
+		static float col1[3], col2[3];
+		ImGui::ColorEdit3("Colour 1", m_perFrameCBData.colour1);
+		ImGui::ColorEdit3("Colour 2", m_perFrameCBData.colour2);
 
-		auto ctx = systems.pDebugDrawContext;
-		if(s_bGrid)
+		if (ImGui::SmallButton("Next preset"))
 		{
-			dd::xzSquareGrid(ctx, -50.0f, 50.0f, 0.0f, 1.f, dd::colors::DimGray);
-			dd::axisTriad(ctx, (const float*)& m4x4::Identity, 0.1f, 15.0f);
+			++currentColourPreset;
+			if (currentColourPreset == MAX_PALETTES)
+			{
+				currentColourPreset = 0;
+			}
+			for (int i = 0; i < 3; ++i)
+			{
+				m_perFrameCBData.colour1[i] = palettes[currentColourPreset].Colour1[i];
+				m_perFrameCBData.colour2[i] = palettes[currentColourPreset].Colour2[i];
+			}
+		}
+
+		ImGui::Text(palettes[currentColourPreset].name.c_str());
+
+		if (s_bOrtho)
+		{
+			if (!systems.pCamera->isOrtho)
+			{
+				// Set up everything for orthographic view
+				m_position = v3(0.0f, 0.0f, -1.0f);
+				m_size = 1.0f;
+				systems.pCamera->eye = v3(0.f, 0.f, -1.f);
+				systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
+				systems.pCamera->up = (v3(0.f, 1.f, 0.f));
+				systems.pCamera->set_ortho(true);
+			}
+		}
+		else if (systems.pCamera->isOrtho)
+		{
+			systems.pCamera->set_ortho(false);
 		}
 
 		//=======================================================================================
@@ -147,41 +224,56 @@ public:
 
 		constexpr f32 kGridSpacing = 1.5f;
 		constexpr u32 kNumInstances = 5;
-		constexpr u32 kNumModelTypes = 2;
+		constexpr u32 kNumModelTypes = 4;
 
-		for (u32 t = 0; t < kNumModelTypes; ++t)
+		if (s_bOrtho)
 		{
 			// Bind a mesh and texture.
-			m_meshArray[t].bind(systems.pD3DContext);
-			m_textures[t].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
+			m_meshArray[3].bind(systems.pD3DContext);
+			m_textures[3].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
 
-			////m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
-			////m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
-			////m_perDrawCBData.m_matMVP = matMVP.Transpose();
-			////push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
-			////m_meshArray[0].draw(systems.pD3DContext);
+			m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
+			m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
+			m_perDrawCBData.m_matMVP = matMVP.Transpose();
+			push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
+			m_meshArray[3].draw(systems.pD3DContext);
 
-		
-			// Draw several instances
-			for (u32 i = 0; i < kNumInstances; ++i)
+			// Update Per Draw Data
+			m_perDrawCBData.m_matMVP = matMVP.Transpose();
+			// Push to GPU
+			push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
+			// Draw the mesh.
+			m_meshArray[3].draw(systems.pD3DContext);
+		}
+		else // Perspective
+		{
+			for (u32 t = 0; t < kNumModelTypes - 2; ++t)
 			{
-				for (u32 j = 0; j < kNumInstances; ++j)
+				// Bind a mesh and texture.
+				m_meshArray[t].bind(systems.pD3DContext);
+				m_textures[t].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
+
+
+				// Draw several instances
+				for (u32 i = 0; i < kNumInstances; ++i)
 				{
-					// Compute MVP matrix.
-					m4x4 matModel = m4x4::CreateTranslation(v3(i * kGridSpacing, t * kGridSpacing, j * kGridSpacing));
-					m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
+					for (u32 j = 0; j < kNumInstances; ++j)
+					{
+						// Compute MVP matrix.
+						m4x4 matModel = m4x4::CreateTranslation(v3(i * kGridSpacing, t * kGridSpacing, j * kGridSpacing));
+						m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
 
-					// Update Per Draw Data
-					m_perDrawCBData.m_matMVP = matMVP.Transpose();
+						// Update Per Draw Data
+						m_perDrawCBData.m_matMVP = matMVP.Transpose();
 
-					// Push to GPU
-					push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
+						// Push to GPU
+						push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
 
-					// Draw the mesh.
-					m_meshArray[t].draw(systems.pD3DContext);
+						// Draw the mesh.
+						m_meshArray[t].draw(systems.pD3DContext);
+					}
 				}
 			}
-		
 		}
 		//=======================================================================================
 		// The Post FX pass
@@ -212,9 +304,9 @@ public:
 		systems.pD3DContext->OMSetRenderTargets(1, &systems.pSwapRenderTarget, m_pDepthSurfaceTargetView);
 
 
-		//
+		// Show the first pass image
+		ImGui::Text("ViewPort");
 		ImGui::Image((void*)m_pColourSurfaceSRV, ImVec2(300, 200));
-		//ImGui::Image((void*)m_pDepthSurfaceSRV, ImVec2(300, 200));
 	}
 
 	void on_resize(SystemsInterface& systems) override
@@ -336,9 +428,11 @@ private:
 	ShaderSet m_meshShader;
 	ShaderSet m_postEffectShader;
 
-	Mesh m_meshArray[2];
-	Texture m_textures[2];
+	Mesh m_meshArray[4];
+	Texture m_textures[4];
 	ID3D11SamplerState* m_pLinearMipSamplerState = nullptr;
+
+	ColourPreset palettes[MAX_PALETTES];
 
 	// Screen quad : for post effect pass.
 	Mesh m_fullScreenQuad;

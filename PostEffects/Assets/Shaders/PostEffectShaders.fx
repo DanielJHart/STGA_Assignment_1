@@ -7,7 +7,9 @@ cbuffer PerFrameCB : register(b0)
 	matrix matProjection;
 	matrix matView;
 	float  time;
-	float  padding[3];
+	float3 colour1;
+	float3 colour2;
+	float padding;
 };
 
 cbuffer PerDrawCB : register(b1)
@@ -103,6 +105,9 @@ float4 Grayscale(float4 col)
 {
 	float c = col.x * 0.299 + col.y * 0.587 + col.z * 0.114;
 	c += 0.15f;
+
+	c = (col.x + col.y + col.z) / 3;
+
 	return float4(c, c, c, 1);
 }
 
@@ -110,8 +115,8 @@ float4 Grayscale(float4 col)
 // BAYER DITHERING
 ///////////////////////////////////////////////////////////////////////////////
 
-int MatSize = 8;
-float matSizeSq = 64.f;
+static int MatSize = 4;
+static float matSizeSq = 16.f;
 
 
 int indexMatrix8x8[8][8] = {{ 0, 32, 8, 40, 2, 34, 10, 42 },
@@ -154,17 +159,15 @@ static int dither[8][8] = {
 {63, 31, 55, 23, 61, 29, 53, 21} };
 
 //#define VERSION_1
-float4 color1 = float4(0.f, 0.f, 0.f, 1.f);
-float4 color2 = float4(1.f, 1.f, 1.f, 1.f);
+static float4 color1 = float4(0.f, 0.f, 0.f, 1.f);
+static float4 color2 = float4(1.f, 1.f, 1.f, 1.f);
 
-float find_closest(int x, int y, float c0)
+float find_closest(int x, int y, float c0, int i)
 {
-	float limit = (x < 8) ? (dither[x][y] + 1) / 64.0f : 0.0f;
+	float limit = (x < MatSize) ? (indexMatrix4x4[x][y] + 1) / matSizeSq : 0.0f;
 
-	return(c0 < limit) ? 0.0 : 1.0;
+	return(c0 < limit) ? colour1[i] : colour2[i];
 }
-
-
 
 float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 {
@@ -178,14 +181,14 @@ float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 	float4 col = gColourSurface.Sample(linearMipSampler, input.uv);
 	float4 grayscale = Grayscale(col);
 	float2 xy = input.vpos.xy;
-	int x = (int)(xy.x % 8);
-	int y = (int)(xy.y % 8);
+	int x = (int)(xy.x % MatSize);
+	int y = (int)(xy.y % MatSize);
 
 	float3 finalRGB;
 
-	finalRGB.x = find_closest(x, y, grayscale.x);
-	finalRGB.y = find_closest(x, y, grayscale.y);
-	finalRGB.z = find_closest(x, y, grayscale.z);
+	finalRGB.x = find_closest(x, y, grayscale.x, 0);
+	finalRGB.y = find_closest(x, y, grayscale.y, 1);
+	finalRGB.z = find_closest(x, y, grayscale.z, 2);
 
 	float finalC = (finalRGB.x > 0.5) ? color1 : color2;
 

@@ -74,6 +74,7 @@ struct Camera
 	f32 aspect;
 	f32 nearClip;
 	f32 farClip;
+	bool isOrtho;
 
 	// Frustum planes for clipping:
 	enum { A, B, C, D };
@@ -92,6 +93,8 @@ struct Camera
 	};
 
 	Camera();
+
+	void set_ortho(const bool b);
 
 	void pitch(const float angle);
 
