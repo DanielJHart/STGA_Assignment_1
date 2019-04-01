@@ -32,7 +32,7 @@ public:
 	struct ColourPreset
 	{
 		ColourPreset() {};
-		ColourPreset(f32 r1, f32 g1, f32 b1, f32 r2, f32 g2, f32 b2, std::string name)
+		ColourPreset(f32 r1, f32 g1, f32 b1, f32 r2, f32 g2, f32 b2, std::string n)
 		{
 
 			Colour1[0] = r1;
@@ -42,6 +42,8 @@ public:
 			Colour2[0] = r2;
 			Colour2[1] = g2;
 			Colour2[2] = b2;
+
+			name = n;
 		}
 
 		f32 Colour1[3];
@@ -68,7 +70,7 @@ public:
 
 	void SetupPalettes()
 	{
-		palettes[0] = ColourPreset( 0.f, 0.f, 0.f, 1.f, 1.f, 1.f, "Black And White" );
+		palettes[0] = ColourPreset( 0.f, 0.f, 0.f, 1.f, 1.f, 1.f, "Black And White" ); // #000000, #FFFFFF
 		palettes[1] = ColourPreset(0.203, 0.203, 0.105, 0.898, 1, 0.992, "Obra Dinn 1"); // #33321A, #CCFFFF
 		palettes[2] = ColourPreset(0.239, 0.152, 0.109, 0.984, 0.776, 0.360, "Obra Dinn 2"); // #3B251A, #FBC757
 		palettes[3] = ColourPreset(0.f, 0.f, 0.f, 0.470, 0.780, 0.188, "Classic Computer Graphics"); // #3B251A, #FBC757
@@ -148,11 +150,15 @@ public:
 		// Grid from -50 to +50 in both X & Z
 		static bool s_bOrtho = true;
 		static int currentColourPreset = 0;
+		static std::string colourName = "Black And White";
 		ImGui::Checkbox("Orthographic", &s_bOrtho);
 		
 		static float col1[3], col2[3];
-		ImGui::ColorEdit3("Colour 1", m_perFrameCBData.colour1);
-		ImGui::ColorEdit3("Colour 2", m_perFrameCBData.colour2);
+		if (ImGui::ColorEdit3("Colour 1", m_perFrameCBData.colour1) ||
+			ImGui::ColorEdit3("Colour 2", m_perFrameCBData.colour2))
+		{
+			colourName = "Custom";
+		}
 
 		if (ImGui::SmallButton("Next preset"))
 		{
@@ -165,11 +171,12 @@ public:
 			{
 				m_perFrameCBData.colour1[i] = palettes[currentColourPreset].Colour1[i];
 				m_perFrameCBData.colour2[i] = palettes[currentColourPreset].Colour2[i];
+				colourName = palettes[currentColourPreset].name;
 			}
 		}
 
-		ImGui::Text(palettes[currentColourPreset].name.c_str());
-
+		ImGui::Text(colourName.c_str());
+		
 		if (s_bOrtho)
 		{
 			if (!systems.pCamera->isOrtho)
@@ -229,21 +236,21 @@ public:
 		if (s_bOrtho)
 		{
 			// Bind a mesh and texture.
-			m_meshArray[3].bind(systems.pD3DContext);
-			m_textures[3].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
+			m_meshArray[2].bind(systems.pD3DContext);
+			m_textures[2].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
 
 			m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
 			m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
 			m_perDrawCBData.m_matMVP = matMVP.Transpose();
 			push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
-			m_meshArray[3].draw(systems.pD3DContext);
+			m_meshArray[2].draw(systems.pD3DContext);
 
 			// Update Per Draw Data
 			m_perDrawCBData.m_matMVP = matMVP.Transpose();
 			// Push to GPU
 			push_constant_buffer(systems.pD3DContext, m_pPerDrawCB, m_perDrawCBData);
 			// Draw the mesh.
-			m_meshArray[3].draw(systems.pD3DContext);
+			m_meshArray[2].draw(systems.pD3DContext);
 		}
 		else // Perspective
 		{
