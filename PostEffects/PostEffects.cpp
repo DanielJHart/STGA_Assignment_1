@@ -21,7 +21,9 @@ public:
 		f32	m_time;
 		f32 colour1[3];
 		f32	colour2[3];
-		f32 padding;
+		f32 matSize;
+		f32 matSizeSq;
+		f32 padding[3];
 	};
 
 	struct PerDrawCBData
@@ -154,6 +156,8 @@ public:
 		m_perFrameCBData.m_matProjection = systems.pCamera->projMatrix.Transpose();
 		m_perFrameCBData.m_matView = systems.pCamera->viewMatrix.Transpose();
 		m_perFrameCBData.m_time += 0.001f;
+		m_perFrameCBData.matSize = matSize;
+		m_perFrameCBData.matSizeSq = matSizeSq;
 	}
 
 	void on_render(SystemsInterface& systems) override
@@ -178,6 +182,23 @@ public:
 				, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", ("PS_PostEffect_" + PostEffectNames[postEffect]).c_str())
 				, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 			);
+		}
+
+		if (postEffect == 0)
+		{
+			if (ImGui::Button("Change Matrix Size"))
+			{
+				matSize *= 2;
+				if (matSize == 16)
+				{
+					matSize = 2;
+					
+				}
+
+				matSizeSq = matSize * matSize;
+			}
+
+			ImGui::Text("Matrix Size: ", matSize, " x ", matSize);
 		}
 
 		ImGui::Checkbox("Orthographic", &s_bOrtho);
@@ -478,6 +499,8 @@ private:
 
 	// Screen quad : for post effect pass.
 	Mesh m_fullScreenQuad;
+
+	int matSize = 2, matSizeSq = 4;
 
 	// Post Effect Rendering Surfaces
 	ID3D11Texture2D*		m_pColourSurface = nullptr;

@@ -9,7 +9,9 @@ cbuffer PerFrameCB : register(b0)
 	float  time;
 	float3 colour1;
 	float3 colour2;
-	float padding;
+	float matSize;
+	float matSizeSq;
+	float padding[3];
 };
 
 cbuffer PerDrawCB : register(b1)
@@ -130,8 +132,6 @@ float4 Grayscale(float4 col)
 ////	float distance = abs(closestColor - color);
 ////	return (distance < d) ? secondClosestColor : closestColor;
 ////}
-#define MatSize 8
-#define MatSizeSq 64.0f
 
 static int indexMatrix2x2[2][2] = { 
 	{0, 2},
@@ -164,8 +164,24 @@ static float4 color2 = float4(1.f, 1.f, 1.f, 1.f);
 
 float find_closest(int x, int y, float c0, int i)
 {
-	int dither[MatSize][MatSize] = indexMatrix8x8;
-	float limit = (x < MatSize) ? (dither[x][y] + 1) / MatSizeSq : 0.0f;
+	float limit;
+
+	switch (matSize)
+	{
+	case 2:
+		limit = (x < matSize) ? (indexMatrix2x2[x][y] + 1) / matSizeSq : 0.0f;
+		break;
+	case 4:
+		limit = (x < matSize) ? (indexMatrix4x4[x][y] + 1) / matSizeSq : 0.0f;
+		break;
+	case 8:
+		limit = (x < matSize) ? (indexMatrix8x8[x][y] + 1) / matSizeSq : 0.0f;
+		break;
+	default:
+		limit = 0;
+		break;
+	}
+
 	return(c0 < limit) ? colour1[i] : colour2[i];
 }
 
@@ -181,8 +197,8 @@ float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 	float4 col = gColourSurface.Sample(linearMipSampler, input.uv);
 	float4 grayscale = Grayscale(col);
 	float2 xy = input.vpos.xy;
-	int x = (int)(xy.x % MatSize);
-	int y = (int)(xy.y % MatSize);
+	int x = (int)(xy.x % matSize);
+	int y = (int)(xy.y % matSize);
 
 	float3 finalRGB;
 

@@ -10,7 +10,9 @@ cbuffer PerFrameCB : register(b0)
 	float  time;
 	float3  colour1;
 	float3  colour2;
-	float padding;
+	float matSize;
+	float matSizeSq;
+	float padding[3];
 };
 
 cbuffer PerDrawCB : register(b1)
