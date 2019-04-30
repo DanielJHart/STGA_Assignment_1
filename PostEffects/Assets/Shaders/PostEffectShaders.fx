@@ -104,9 +104,9 @@ float4 PS_PostEffect_None(VertexOutput input) : SV_TARGET
 float4 Grayscale(float4 col)
 {
 	float c = col.x * 0.299 + col.y * 0.587 + col.z * 0.114;
-	c += 0.15f;
+	//c += 0.15f;
 
-	c = (col.x + col.y + col.z) / 3;
+	//c = (col.x + col.y + col.z) / 3;
 
 	return float4(c, c, c, 1);
 }

@@ -56,13 +56,15 @@ public:
 		// Initialize a mesh directly.
 		create_mesh_cube(systems.pD3DDevice, m_meshArray[0], 0.5f);
 
+		////create_mesh_from_obj(systems.pD3DDevice, m_meshArray[1], "Assets/Models/Table2obj.obj", 0.01f);
+
 		// Initialize a mesh from an .OBJ file
 		create_mesh_from_obj(systems.pD3DDevice, m_meshArray[1], "Assets/Models/apple.obj", 0.01f);
 		create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[2], systems.height / 2);
 		create_mesh_quad_xy(systems.pD3DDevice, m_meshArray[3], systems.height / 2);
 
 		// Initialise some textures;
-		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/brick.dds");
+		m_textures[0].init_from_dds(systems.pD3DDevice, "Assets/Textures/gradient.dds");
 		m_textures[1].init_from_dds(systems.pD3DDevice, "Assets/Textures/apple_diffuse.dds");
 		m_textures[2].init_from_dds(systems.pD3DDevice, "Assets/Textures/lenna.dds");
 		m_textures[3].init_from_dds(systems.pD3DDevice, "Assets/Textures/gradient.dds");
@@ -82,8 +84,17 @@ public:
 		}
 	}
 
+	void SetupPostProcessNames()
+	{
+		PostEffectNames[0] = "Bayer_Dither";
+		PostEffectNames[1] = "Floyd_Steinberg_Dither";
+		PostEffectNames[2] = "None";
+	}
+
 	void on_init(SystemsInterface& systems) override
 	{
+		SetupPostProcessNames();
+
 		// Create our rendering and depth surfaces.
 		create_render_surfaces(systems.pD3DDevice, systems.pD3DContext, systems.width, systems.height);
 
@@ -105,7 +116,7 @@ public:
 
 		// Compile a set of shaders for our post effect
 		m_postEffectShader.init(systems.pD3DDevice
-			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", "PS_PostEffect_Bayer_Dither")
+			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", ("PS_PostEffect_" + PostEffectNames[0]).c_str())
 			, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 		);
 
@@ -150,8 +161,53 @@ public:
 		// Grid from -50 to +50 in both X & Z
 		static bool s_bOrtho = true;
 		static int currentColourPreset = 0;
+		static int imageToUse = 2;
+		static int postEffect = 0;
 		static std::string colourName = "Black And White";
+
+		ImGui::Text(PostEffectNames[postEffect].c_str());
+		if (ImGui::Button("Change Dither Algorithm"))
+		{
+			++postEffect;
+			if (postEffect == 3)
+			{
+				postEffect = 0;
+			}
+
+			m_postEffectShader.init(systems.pD3DDevice
+				, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", ("PS_PostEffect_" + PostEffectNames[postEffect]).c_str())
+				, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
+			);
+		}
+
 		ImGui::Checkbox("Orthographic", &s_bOrtho);
+		if (s_bOrtho)
+		{
+			if (!systems.pCamera->isOrtho)
+			{
+				// Set up camera for orthographic view
+				m_position = v3(0.0f, 0.0f, -1.0f);
+				m_size = 1.0f;
+				systems.pCamera->eye = v3(0.f, 0.f, -1.f);
+				systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
+				systems.pCamera->up = (v3(0.f, 1.f, 0.f));
+				systems.pCamera->set_ortho(true);
+			}
+
+			if (ImGui::Button("Switch Image"))
+			{
+				if (imageToUse == 2) { imageToUse = 3; }
+				else { imageToUse = 2; }
+			}
+		}
+		else if (systems.pCamera->isOrtho)
+		{
+			// Set up camera for perspective view
+			systems.pCamera->eye = v3(12.f, 7.7f, 11.8f);
+			systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
+			systems.pCamera->up = (v3(0.f, 1.f, 0.f));
+			systems.pCamera->set_ortho(false);
+		}
 		
 		static float col1[3], col2[3];
 		if (ImGui::ColorEdit3("Colour 1", m_perFrameCBData.colour1) ||
@@ -160,7 +216,7 @@ public:
 			colourName = "Custom";
 		}
 
-		if (ImGui::SmallButton("Next preset"))
+		if (ImGui::Button("Next preset"))
 		{
 			++currentColourPreset;
 			if (currentColourPreset == MAX_PALETTES)
@@ -177,24 +233,6 @@ public:
 
 		ImGui::Text(colourName.c_str());
 		
-		if (s_bOrtho)
-		{
-			if (!systems.pCamera->isOrtho)
-			{
-				// Set up everything for orthographic view
-				m_position = v3(0.0f, 0.0f, -1.0f);
-				m_size = 1.0f;
-				systems.pCamera->eye = v3(0.f, 0.f, -1.f);
-				systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
-				systems.pCamera->up = (v3(0.f, 1.f, 0.f));
-				systems.pCamera->set_ortho(true);
-			}
-		}
-		else if (systems.pCamera->isOrtho)
-		{
-			systems.pCamera->set_ortho(false);
-		}
-
 		//=======================================================================================
 		// The Main rendering Pass
 		// Draw our scene into the off-screen render surface
@@ -204,7 +242,7 @@ public:
 		systems.pD3DContext->OMSetRenderTargets(1, &m_pColourSurfaceTargetView, m_pDepthSurfaceTargetView);
 
 		// Clear colour and depth
-		f32 clearValue[] = { 0.f, 0.f, 0.f, 0.f };
+		f32 clearValue[] = { 0.0f, 0.0f, 0.0f, 0.f };
 		systems.pD3DContext->ClearRenderTargetView(m_pColourSurfaceTargetView, clearValue);
 		systems.pD3DContext->ClearDepthStencilView(m_pDepthSurfaceTargetView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.f, 0);
 
@@ -237,7 +275,7 @@ public:
 		{
 			// Bind a mesh and texture.
 			m_meshArray[2].bind(systems.pD3DContext);
-			m_textures[2].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
+			m_textures[imageToUse].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
 
 			m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
 			m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
@@ -309,11 +347,6 @@ public:
 
 		// re-bind depth for debugging output which is rendered after this lot.
 		systems.pD3DContext->OMSetRenderTargets(1, &systems.pSwapRenderTarget, m_pDepthSurfaceTargetView);
-
-
-		// Show the first pass image
-		ImGui::Text("ViewPort");
-		ImGui::Image((void*)m_pColourSurfaceSRV, ImVec2(300, 200));
 	}
 
 	void on_resize(SystemsInterface& systems) override
@@ -438,6 +471,8 @@ private:
 	Mesh m_meshArray[4];
 	Texture m_textures[4];
 	ID3D11SamplerState* m_pLinearMipSamplerState = nullptr;
+
+	std::string PostEffectNames[3];
 
 	ColourPreset palettes[MAX_PALETTES];
 
