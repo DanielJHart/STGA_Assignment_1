@@ -133,22 +133,39 @@ float4 Grayscale(float4 col)
 ////	return (distance < d) ? secondClosestColor : closestColor;
 ////}
 
-static int indexMatrix2x2[2][2] = { 
+static int bayerMatrix2x2[2][2] = { 
 	{0, 2},
 	{3, 1} };
 
-static int indexMatrix3x3[3][3] = {
+static int dotMatrix2x2[2][2] = {
+	{3, 1},
+	{0, 2} };
+
+static int bayerMatrix3x3[3][3] = {
 	{0, 7, 3},
 	{6, 5, 2},
 	{4, 1, 8} };
 
-static int indexMatrix4x4[4][4] = { 
+static int bayerMatrix4x4[4][4] = { 
 	{ 0,		8,		2,		10 },
 	{ 12,		4,		14,		6 },
 	{ 3,		11,		1,		9 },
 	{15,		7,		13,		5 } };
 
-static int indexMatrix8x8[8][8] = {
+static int bayerMatrix4x4v2[4][4] = {
+	{ 15,		3,		12,		0 },
+	{ 7,		11,		4,		8 },
+	{ 13,		1,		14,		2 },
+	{ 5,		9,		6,		10 } };
+
+
+static int dotMatrix4x4[4][4] = {
+	{ 12,		5,		6,		13 },
+	{ 4,		0,		1,		7 },
+	{ 11,		3,		2,		8 },
+	{15,		10,		9,		14 } };
+
+static int bayerMatrix8x8[8][8] = {
 { 0, 32, 8, 40, 2, 34, 10, 42}, /* 8x8 Bayer ordered dithering */
 {48, 16, 56, 24, 50, 18, 58, 26}, /* pattern. Each input pixel */
 {12, 44, 4, 36, 14, 46, 6, 38}, /* is scaled to the 0..63 range */
@@ -158,42 +175,57 @@ static int indexMatrix8x8[8][8] = {
 {15, 47, 7, 39, 13, 45, 5, 37},
 {63, 31, 55, 23, 61, 29, 53, 21} };
 
-//#define VERSION_1
-static float4 color1 = float4(0.f, 0.f, 0.f, 1.f);
-static float4 color2 = float4(1.f, 1.f, 1.f, 1.f);
+static int dotMatrix8x8[8][8] = {
+{24,	10,		12,		26,		35,		47,		49,		37},
+{ 8,	0,		2,		14,		45,		59,		61,		51},
+{ 22,	6,		4,		16,		43,		57,		63,		53},
+{ 30,	20,		18,		28,		33,		41,		55,		39},
+{ 34,	46,		48,		36,		25,		11,		13,		27},
+{ 44,	58,		60,		50,		9,		1,		3,		15},
+{ 42,	56,		62,		52,		23,		7,		5,		17},
+{ 32,	40,		54,		38,		31,		21,		19,		29}
+};
 
-float find_closest(int x, int y, float c0, int i)
+float rand_1_05(float2 uv)
 {
-	float limit;
+	float2 noise = (frac(sin(dot(uv, float2(12.9898, 78.233)*2.0)) * 43758.5453));
+	return abs(noise.x + noise.y) * 0.5;
+}
 
-	switch (matSize)
-	{
-	case 2:
-		limit = (x < matSize) ? (indexMatrix2x2[x][y] + 1) / matSizeSq : 0.0f;
-		break;
-	case 4:
-		limit = (x < matSize) ? (indexMatrix4x4[x][y] + 1) / matSizeSq : 0.0f;
-		break;
-	case 8:
-		limit = (x < matSize) ? (indexMatrix8x8[x][y] + 1) / matSizeSq : 0.0f;
-		break;
-	default:
-		limit = 0;
-		break;
-	}
+float find_closest_bayer(int x, int y, float c0, int i)
+{
+	float limit = 0;
+
+	limit = (matSize == 2) ? (x < matSize) ? (bayerMatrix2x2[x][y] + 1) / matSizeSq : 0.0f : limit;
+	limit = (matSize == 4) ? (x < matSize) ? (bayerMatrix4x4[x][y] + 1) / matSizeSq : 0.0f : limit;
+	limit = (matSize == 8) ? (x < matSize) ? (bayerMatrix8x8[x][y] + 1) / matSizeSq : 0.0f : limit;
+
+	return(c0 < limit) ? colour1[i] : colour2[i];
+}
+
+float find_closest_bayerR1(int x, int y, float c0, int i)
+{
+	float limit = 0;
+
+	limit = (matSize == 4) ? (x < matSize) ? (bayerMatrix4x4v2[x][y] + 1) / matSizeSq : 0.0f : limit;
+
+	return(c0 < limit) ? colour1[i] : colour2[i];
+}
+
+float find_closest_dot(int x, int y, float c0, int i)
+{
+	float limit = 0;
+
+	limit = (matSize == 2) ? (x < matSize) ? (dotMatrix2x2[x][y] + 1) / matSizeSq : 0.0f : limit;
+	limit = (matSize == 4) ? (x < matSize) ? (dotMatrix4x4[x][y] + 1) / matSizeSq : 0.0f : limit;
+	limit = (matSize == 8) ? (x < matSize) ? (dotMatrix8x8[x][y] + 1) / matSizeSq : 0.0f : limit;
 
 	return(c0 < limit) ? colour1[i] : colour2[i];
 }
 
 float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 {
-#ifdef VERSION_1
-	float c = gColourSurface.Sample(linearMipSampler, input.uv); //= Grayscale(gColourSurface.Sample(linearMipSampler, input.uv));
-	float retc = Dither(c.x, input.vpos.x, input.vpos.y);
-	return float4(retc, retc, retc, 1);
-#else
 	// Courtesy of: http://devlog-martinsh.blogspot.com/2011/03/glsl-8x8-bayer-matrix-dithering.html
-	//float4 pixellatedCol = PS_PostEffect_Pixelate(input);
 	float4 col = gColourSurface.Sample(linearMipSampler, input.uv);
 	float4 grayscale = Grayscale(col);
 	float2 xy = input.vpos.xy;
@@ -202,15 +234,55 @@ float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 
 	float3 finalRGB;
 
-	finalRGB.x = find_closest(x, y, grayscale.x, 0);
-	finalRGB.y = find_closest(x, y, grayscale.y, 1);
-	finalRGB.z = find_closest(x, y, grayscale.z, 2);
+	finalRGB.x = find_closest_bayer(x, y, grayscale.x, 0);
+	finalRGB.y = find_closest_bayer(x, y, grayscale.y, 1);
+	finalRGB.z = find_closest_bayer(x, y, grayscale.z, 2);
 
-	float finalC = (finalRGB.x > 0.5) ? color1 : color2;
+	float finalC = (finalRGB.x > 0.5) ? colour1 : colour2;
 
 	return float4(finalRGB.xyz, 1.0);
+}
 
-#endif
+float4 PS_PostEffect_Bayer_Dot_Dither(VertexOutput input) : SV_TARGET
+{
+	// Courtesy of: http://devlog-martinsh.blogspot.com/2011/03/glsl-8x8-bayer-matrix-dithering.html
+	float4 col = gColourSurface.Sample(linearMipSampler, input.uv);
+	float4 grayscale = Grayscale(col);
+	float2 xy = input.vpos.xy;
+	int x = (int)(xy.x % matSize);
+	int y = (int)(xy.y % matSize);
+
+	float3 finalRGB;
+
+	finalRGB.x = find_closest_dot(x, y, grayscale.x, 0);
+	finalRGB.y = find_closest_dot(x, y, grayscale.y, 1);
+	finalRGB.z = find_closest_dot(x, y, grayscale.z, 2);
+
+	float finalC = (finalRGB.x > 0.5) ? colour1 : colour2;
+
+	return float4(finalRGB.xyz, 1.0);
+}
+
+float4 PS_PostEffect_Bayer_Random_Dither(VertexOutput input) : SV_TARGET
+{
+	// Courtesy of: http://devlog-martinsh.blogspot.com/2011/03/glsl-8x8-bayer-matrix-dithering.html
+	float4 col = gColourSurface.Sample(linearMipSampler, input.uv);
+	float4 grayscale = Grayscale(col);
+	float2 xy = input.vpos.xy;
+	int x = (int)(xy.x % matSize);
+	int y = (int)(xy.y % matSize);
+
+	float3 finalRGB;
+
+	float rand = rand_1_05(input.vpos.xy);
+
+	finalRGB.x = (rand > 0.5f) ? find_closest_bayer(x, y, grayscale.x, 0) : find_closest_bayer(y, x, grayscale.x, 0);
+	finalRGB.y = (rand > 0.5f) ? find_closest_bayer(x, y, grayscale.y, 1) : find_closest_bayer(y, x, grayscale.y, 1);
+	finalRGB.z = (rand > 0.5f) ? find_closest_bayer(x, y, grayscale.z, 2) : find_closest_bayer(y, x, grayscale.z, 2);
+
+	float finalC = (finalRGB.x > 0.5) ? colour1 : colour2;
+
+	return float4(finalRGB.xyz, 1.0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -218,8 +290,6 @@ float4 PS_PostEffect_Bayer_Dither(VertexOutput input) : SV_TARGET
 ///////////////////////////////////////////////////////////////////////////////
 // FLOYD-STEINBERG DITHERING
 ///////////////////////////////////////////////////////////////////////////////
-
-
 
 float4 FindClosestPaletteColour(float4 col)
 {	

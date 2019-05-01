@@ -3,8 +3,10 @@
 #include "ShaderSet.h"
 #include "Mesh.h"
 #include "Texture.h"
-
+#include <string>
+#include <random>
 #define MAX_PALETTES 4
+#define kNumberOfAlgorithms 4
 
 //================================================================================
 // Minimal Application
@@ -88,14 +90,122 @@ public:
 
 	void SetupPostProcessNames()
 	{
-		PostEffectNames[0] = "Bayer_Dither";
-		PostEffectNames[1] = "Floyd_Steinberg_Dither";
-		PostEffectNames[2] = "None";
+		m_PostEffectNames[0] = "Bayer_Dither";
+		m_PostEffectNames[1] = "Bayer_Random_Dither";
+		m_PostEffectNames[2] = "Bayer_Dot_Dither";
+		m_PostEffectNames[kNumberOfAlgorithms - 1] = "None";
+	}
+
+	void HandleImGui(SystemsInterface& systems)
+	{
+		ImGui::Text("------ Orthographic Controls ------");
+		ImGui::Checkbox("Orthographic", &m_Ortho);
+		if (m_Ortho)
+		{
+			if (!systems.pCamera->isOrtho)
+			{
+				// Set up camera for orthographic view
+				m_position = v3(0.0f, 0.0f, -1.0f);
+				m_size = 1.0f;
+				systems.pCamera->eye = v3(0.f, 0.f, -1.f);
+				systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
+				systems.pCamera->up = (v3(0.f, 1.f, 0.f));
+				systems.pCamera->set_ortho(true);
+			}
+
+			if (ImGui::Button("Switch Image"))
+			{
+				if (m_imageToUse == 2) { m_imageToUse = 3; }
+				else { m_imageToUse = 2; }
+			}
+		}
+		else if (systems.pCamera->isOrtho)
+		{
+			// Set up camera for perspective view
+			systems.pCamera->eye = v3(12.f, 7.7f, 11.8f);
+			systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
+			systems.pCamera->up = (v3(0.f, 1.f, 0.f));
+			systems.pCamera->set_ortho(false);
+		}
+
+		ImGui::Text("--------------------------------");
+		ImGui::Text("\n------ Algorithm Controls ------");
+		ImGui::Text("Dither Algorithm");
+		
+		if (ImGui::ListBox("", &m_postEffect, &m_PostEffectNames[0], kNumberOfAlgorithms))
+		{
+			std::string algorithmToUse = "PS_PostEffect_";
+			algorithmToUse += m_PostEffectNames[m_postEffect];
+
+			m_postEffectShader.init(systems.pD3DDevice
+				, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", algorithmToUse.c_str())
+				, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
+			);
+		}
+
+		if (m_postEffect < kNumberOfAlgorithms - 1)
+		{
+			if (ImGui::Button("Change Matrix Size"))
+			{
+				m_matSize *= 2;
+				if (m_matSize == 16)
+				{
+					m_matSize = 2;
+
+				}
+				m_matSizeSq = m_matSize * m_matSize;
+			}
+
+			ImGui::Text(("Matrix Size: " + std::to_string(m_matSize) + "x" + std::to_string(m_matSize)).c_str());
+		}
+
+		ImGui::Text("--------------------------------");
+		ImGui::Text("\n------ Colour Controls ------");
+
+		static float col1[3], col2[3];
+		if (ImGui::ColorEdit3("Colour 1", m_perFrameCBData.colour1) ||
+			ImGui::ColorEdit3("Colour 2", m_perFrameCBData.colour2))
+		{
+			m_colourName = "Custom";
+		}
+
+		if (ImGui::Button("Next preset"))
+		{
+			++m_colourPresetSelected;
+			if (m_colourPresetSelected == MAX_PALETTES)
+			{
+				m_colourPresetSelected = 0;
+			}
+			for (int i = 0; i < 3; ++i)
+			{
+				m_perFrameCBData.colour1[i] = palettes[m_colourPresetSelected].Colour1[i];
+				m_perFrameCBData.colour2[i] = palettes[m_colourPresetSelected].Colour2[i];
+				m_colourName = palettes[m_colourPresetSelected].name;
+			}
+		}
+
+		ImGui::Text(("Colour Set: " + m_colourName).c_str());
+		ImGui::Text("--------------------------------");
 	}
 
 	void on_init(SystemsInterface& systems) override
 	{
+		// Define random generator with Gaussian distribution
+		const double mean = 0.0;
+		const double stddev = 0.08;
+		std::default_random_engine generator;
+		std::normal_distribution<double> dist(mean, stddev);
+
+		for (int i = 0; i < 10; ++i)
+		{
+			float x = dist(generator);
+
+
+			x = 1;
+		}
+
 		SetupPostProcessNames();
+		SetupPalettes();
 
 		// Create our rendering and depth surfaces.
 		create_render_surfaces(systems.pD3DDevice, systems.pD3DContext, systems.width, systems.height);
@@ -116,9 +226,12 @@ public:
 			, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 		);
 
+		std::string algorithmToUse = "PS_PostEffect_";
+		algorithmToUse += m_PostEffectNames[m_postEffect];
+
 		// Compile a set of shaders for our post effect
 		m_postEffectShader.init(systems.pD3DDevice
-			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", ("PS_PostEffect_" + PostEffectNames[0]).c_str())
+			, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", algorithmToUse.c_str())
 			, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
 		);
 
@@ -131,8 +244,6 @@ public:
 		m_pPerDrawCB = create_constant_buffer<PerDrawCBData>(systems.pD3DDevice);
 
 		SetupModelsAndTextures(systems);
-
-		SetupPalettes();
 
 		// We need a sampler state to define wrapping and mipmap parameters.
 		m_pLinearMipSamplerState = create_basic_sampler(systems.pD3DDevice, D3D11_TEXTURE_ADDRESS_WRAP);
@@ -149,6 +260,8 @@ public:
 		// see also : https://github.com/ocornut/imgui
 		//////////////////////////////////////////////////////////////////////////
 
+		
+
 		// This function displays some useful debugging values, camera positions etc.
 		DemoFeatures::editorHud(systems.pDebugDrawContext);
 
@@ -156,108 +269,20 @@ public:
 		m_perFrameCBData.m_matProjection = systems.pCamera->projMatrix.Transpose();
 		m_perFrameCBData.m_matView = systems.pCamera->viewMatrix.Transpose();
 		m_perFrameCBData.m_time += 0.001f;
-		m_perFrameCBData.matSize = matSize;
-		m_perFrameCBData.matSizeSq = matSizeSq;
+		m_perFrameCBData.matSize = m_matSize;
+		m_perFrameCBData.matSizeSq = m_matSizeSq;
 	}
 
 	void on_render(SystemsInterface& systems) override
 	{
 		// Grid from -50 to +50 in both X & Z
-		static bool s_bOrtho = true;
-		static int currentColourPreset = 0;
-		static int imageToUse = 2;
-		static int postEffect = 0;
-		static std::string colourName = "Black And White";
 
-		ImGui::Text(PostEffectNames[postEffect].c_str());
-		if (ImGui::Button("Change Dither Algorithm"))
-		{
-			++postEffect;
-			if (postEffect == 3)
-			{
-				postEffect = 0;
-			}
-
-			m_postEffectShader.init(systems.pD3DDevice
-				, ShaderSetDesc::Create_VS_PS("Assets/Shaders/PostEffectShaders.fx", "VS_PostEffect", ("PS_PostEffect_" + PostEffectNames[postEffect]).c_str())
-				, { VertexFormatTraits<MeshVertex>::desc, VertexFormatTraits<MeshVertex>::size }
-			);
-		}
-
-		if (postEffect == 0)
-		{
-			if (ImGui::Button("Change Matrix Size"))
-			{
-				matSize *= 2;
-				if (matSize == 16)
-				{
-					matSize = 2;
-					
-				}
-
-				matSizeSq = matSize * matSize;
-			}
-
-			ImGui::Text("Matrix Size: ", matSize, " x ", matSize);
-		}
-
-		ImGui::Checkbox("Orthographic", &s_bOrtho);
-		if (s_bOrtho)
-		{
-			if (!systems.pCamera->isOrtho)
-			{
-				// Set up camera for orthographic view
-				m_position = v3(0.0f, 0.0f, -1.0f);
-				m_size = 1.0f;
-				systems.pCamera->eye = v3(0.f, 0.f, -1.f);
-				systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
-				systems.pCamera->up = (v3(0.f, 1.f, 0.f));
-				systems.pCamera->set_ortho(true);
-			}
-
-			if (ImGui::Button("Switch Image"))
-			{
-				if (imageToUse == 2) { imageToUse = 3; }
-				else { imageToUse = 2; }
-			}
-		}
-		else if (systems.pCamera->isOrtho)
-		{
-			// Set up camera for perspective view
-			systems.pCamera->eye = v3(12.f, 7.7f, 11.8f);
-			systems.pCamera->look_at(v3(0.f, 0.f, 0.f));
-			systems.pCamera->up = (v3(0.f, 1.f, 0.f));
-			systems.pCamera->set_ortho(false);
-		}
-		
-		static float col1[3], col2[3];
-		if (ImGui::ColorEdit3("Colour 1", m_perFrameCBData.colour1) ||
-			ImGui::ColorEdit3("Colour 2", m_perFrameCBData.colour2))
-		{
-			colourName = "Custom";
-		}
-
-		if (ImGui::Button("Next preset"))
-		{
-			++currentColourPreset;
-			if (currentColourPreset == MAX_PALETTES)
-			{
-				currentColourPreset = 0;
-			}
-			for (int i = 0; i < 3; ++i)
-			{
-				m_perFrameCBData.colour1[i] = palettes[currentColourPreset].Colour1[i];
-				m_perFrameCBData.colour2[i] = palettes[currentColourPreset].Colour2[i];
-				colourName = palettes[currentColourPreset].name;
-			}
-		}
-
-		ImGui::Text(colourName.c_str());
 		
 		//=======================================================================================
 		// The Main rendering Pass
 		// Draw our scene into the off-screen render surface
 		//=======================================================================================
+		HandleImGui(systems);
 
 		// Bind the render target views for colour and depth to the output merger.
 		systems.pD3DContext->OMSetRenderTargets(1, &m_pColourSurfaceTargetView, m_pDepthSurfaceTargetView);
@@ -292,11 +317,11 @@ public:
 		constexpr u32 kNumInstances = 5;
 		constexpr u32 kNumModelTypes = 4;
 
-		if (s_bOrtho)
+		if (m_Ortho)
 		{
 			// Bind a mesh and texture.
 			m_meshArray[2].bind(systems.pD3DContext);
-			m_textures[imageToUse].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
+			m_textures[m_imageToUse].bind(systems.pD3DContext, ShaderStage::kPixel, 0);
 
 			m4x4 matModel = m4x4::CreateTranslation(v3(0, 0, 0));
 			m4x4 matMVP = matModel * systems.pCamera->vpMatrix;
@@ -349,6 +374,8 @@ public:
 		// Bind the swap chain (back buffer) to the render target
 		// Make sure to unbind the depth buffer, so we can read from it.
 		systems.pD3DContext->OMSetRenderTargets(1, &systems.pSwapRenderTarget, NULL);
+
+		
 
 		// Bind our Colour and Depth surfaces as inputs to the pixel shader
 		ID3D11ShaderResourceView* srvs[2]{ m_pColourSurfaceSRV, m_pDepthSurfaceSRV };
@@ -493,14 +520,10 @@ private:
 	Texture m_textures[4];
 	ID3D11SamplerState* m_pLinearMipSamplerState = nullptr;
 
-	std::string PostEffectNames[3];
-
 	ColourPreset palettes[MAX_PALETTES];
 
 	// Screen quad : for post effect pass.
 	Mesh m_fullScreenQuad;
-
-	int matSize = 2, matSizeSq = 4;
 
 	// Post Effect Rendering Surfaces
 	ID3D11Texture2D*		m_pColourSurface = nullptr;
@@ -513,6 +536,17 @@ private:
 
 	v3 m_position;
 	f32 m_size;
+
+	// ----------- ImGui Variables -----------
+
+	char* m_PostEffectNames[kNumberOfAlgorithms];
+	int m_matSize = 2;
+	int m_matSizeSq = 4;
+	bool m_Ortho = true;
+	int m_colourPresetSelected = 0, m_imageToUse = 2, m_postEffect = 0;
+	std::string m_colourName = "Black and White";
+
+	// ---------------------------------------
 };
 
 MinimalApp g_app;
